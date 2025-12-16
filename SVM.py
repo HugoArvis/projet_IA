@@ -2,14 +2,14 @@
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, confusion_matrix
-from imblearn.combine import SMOTEENN
+from imblearn.over_sampling import SMOTE
 import pandas as pd
 import os
 import joblib
 
 
 #fonction pour le modèle SVM
-def svm_model(X, y, test_size=0.2, random_state=42, kernel='linear', C=1.0, use_saved_model=False):
+def svm_model(X, y, test_size=0.2, random_state=42, kernel='rbf', C=1.0, probablity=True, use_saved_model=False):
     """
     Entraîne un modèle SVM sur les données fournies et évalue ses performances.
 
@@ -45,14 +45,14 @@ def svm_model(X, y, test_size=0.2, random_state=42, kernel='linear', C=1.0, use_
         print("Application de SMOTE...")
         print(f"Avant SMOTE - Classe 0: {sum(y_train == 0)}, Classe 1: {sum(y_train == 1)}")
 
-        smoteenn = SMOTEENN(random_state=random_state)
-        X_train_resampled, y_train_resampled = smoteenn.fit_resample(X_train, y_train)
+        smote = SMOTE(random_state=random_state, sampling_strategy='auto')
+        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
 
         print(f"Après SMOTEENN - Classe 0: {sum(y_train_resampled == 0)}, Classe 1: {sum(y_train_resampled == 1)}")
 
         #créer un nouveau modèle et l'entraîner
         print("Entraînement du modèle SVM...")
-        model = SVC(kernel=kernel, C=C, random_state=random_state)
+        model = SVC(kernel=kernel, C=C, random_state=random_state, probability=probablity)
         model.fit(X_train_resampled, y_train_resampled)
 
         #saouvegarder le modèle entraîné

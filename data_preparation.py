@@ -1,7 +1,7 @@
 # Imports
 import pandas as pd
 import numpy as np
-from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
@@ -37,7 +37,14 @@ df = general_data.merge(employee_survey, on='EmployeeID', how='left')
 df = df.merge(manager_survey, on='EmployeeID', how='left')
 
 print(f"✓ DataFrame fusionné: {df.shape}")
-print(f"✓ Nombre d'employés: {len(df)}")
+print(f"✓ Nombre d'employés avant suppression des N/A: {len(df)}")
+
+# Suppression des lignes avec valeurs manquantes
+print(f"\nNombre de valeurs manquantes avant suppression: {df.isnull().sum().sum()}")
+df = df.dropna()
+print(f"✓ Lignes avec N/A supprimées")
+print(f"✓ Nombre d'employés après suppression des N/A: {len(df)}")
+print(f"✓ Valeurs manquantes restantes: {df.isnull().sum().sum()}")
 print(f"✓ Nombre de variables: {len(df.columns)}")
 
 # Aperçu des données
@@ -64,8 +71,9 @@ df['Attrition'].value_counts(normalize=True).plot(kind='pie', ax=ax[1], autopct=
 ax[1].set_title('Proportion de l\'Attrition')
 ax[1].set_ylabel('')
 plt.tight_layout()
+plt.show()
 
-print("\nDéséquilibre de classes détecté (16.1% vs 83.9%) - SMOTE sera appliqué ultérieurement")
+print("\n⚠️ Déséquilibre de classes détecté (16.1% vs 83.9%) - SMOTE sera appliqué ultérieurement")
 
 # Vérification des variables constantes
 print("Vérification des valeurs uniques pour les variables constantes:")
@@ -89,64 +97,24 @@ print(f"✓ Variables supprimées: {columns_to_drop}")
 print(f"✓ Nouvelles dimensions: {df.shape}")
 print(f"✓ Colonnes restantes: {len(df.columns)}")
 
-# Analyse des valeurs manquantes
-print("=== Analyse des valeurs manquantes ===")
-missing = df.isnull().sum()
-missing = missing[missing > 0].sort_values(ascending=False)
-
-if len(missing) > 0:
-    print("\nVariables avec valeurs manquantes:")
-    for col, count in missing.items():
-        print(f"  {col}: {count} NA ({count / len(df) * 100:.2f}%)")
-    print(f"\nTotal: {missing.sum()} valeurs manquantes")
-
-    # Visualisation
-    plt.figure(figsize=(10, 5))
-    missing.plot(kind='barh', color='#e74c3c')
-    plt.title('Nombre de valeurs manquantes par variable')
-    plt.xlabel('Nombre de NA')
-    plt.tight_layout()
-else:
-    print("✓ Aucune valeur manquante détectée")
-
-# Imputation des variables numériques (médiane)
-numeric_cols_with_na = ['NumCompaniesWorked', 'TotalWorkingYears']
-
-print("\nImputation des variables numériques (médiane)...")
-imputer_median = SimpleImputer(strategy='median')
-
-# Vérifier que les colonnes existent et ont des NA
-numeric_cols_to_impute = [col for col in numeric_cols_with_na if col in df.columns and df[col].isnull().sum() > 0]
-
-if len(numeric_cols_to_impute) > 0:
-    df[numeric_cols_to_impute] = imputer_median.fit_transform(df[numeric_cols_to_impute])
-    print(f"✓ Imputation par médiane: {numeric_cols_to_impute}")
-else:
-    print("✓ Aucune variable numérique à imputer")
-
-# Imputation des variables catégorielles ordinales (mode)
-categorical_cols_with_na = ['EnvironmentSatisfaction', 'JobSatisfaction', 'WorkLifeBalance']
-
-print("\nImputation des variables catégorielles (mode)...")
-imputer_mode = SimpleImputer(strategy='most_frequent')
-
-# Vérifier que les colonnes existent et ont des NA
-categorical_cols_to_impute = [col for col in categorical_cols_with_na if col in df.columns and df[col].isnull().sum() > 0]
-
-if len(categorical_cols_to_impute) > 0:
-    df[categorical_cols_to_impute] = imputer_mode.fit_transform(df[categorical_cols_to_impute])
-    print(f"✓ Imputation par mode: {categorical_cols_to_impute}")
-else:
-    print("✓ Aucune variable catégorielle à imputer")
-
-# Vérification finale
-print("\n=== Vérification après imputation ===")
+# Vérification finale des valeurs manquantes
+print("=== Vérification des valeurs manquantes ===")
 remaining_na = df.isnull().sum().sum()
+
 if remaining_na == 0:
-    print("✓ SUCCÈS: 0 valeurs manquantes restantes")
+    print("✓ SUCCÈS: 0 valeurs manquantes dans le dataset")
+    print(f"✓ Nombre de lignes: {len(df)}")
+    print(f"✓ Nombre de colonnes: {len(df.columns)}")
 else:
-    print(f"Attention: {remaining_na} valeurs manquantes restantes")
+    print(f"⚠️ Attention: {remaining_na} valeurs manquantes détectées")
     print(df.isnull().sum()[df.isnull().sum() > 0])
+
+# Label Encoding pour la variable cible Attrition
+print("\nLabel Encoding de la variable cible (Attrition)...")
+df['Attrition'] = df['Attrition'].map({'Yes': 1, 'No': 0})
+
+print(f"✓ Attrition encodée: {df['Attrition'].unique()}")
+print(f"  Distribution: {df['Attrition'].value_counts().to_dict()}")
 
 # Analyse des variables catégorielles avant encodage
 print("=== Variables catégorielles à encoder ===")
@@ -157,50 +125,46 @@ for var in categorical_vars:
         print(f"\n{var}: {df[var].nunique()} modalités")
         print(df[var].value_counts())
 
-# Label Encoding pour la variable cible Attrition
-print("\nLabel Encoding de la variable cible (Attrition)...")
-df['Attrition'] = df['Attrition'].map({'Yes': 1, 'No': 0})
-
-print(f"✓ Attrition encodée: {df['Attrition'].unique()}")
-print(f"  Distribution: {df['Attrition'].value_counts().to_dict()}")
-
-# One-Hot Encoding pour les variables catégorielles
+# One-Hot Encoding pour les variables catégorielles avec OneHotEncoder de sklearn
 print("\nOne-Hot Encoding des variables catégorielles...")
 print(f"Nombre de colonnes avant: {len(df.columns)}")
 
+# Définir les colonnes catégorielles à encoder
 categorical_to_encode = [col for col in categorical_vars if col in df.columns]
-df = pd.get_dummies(df, columns=categorical_to_encode, drop_first=True)
+
+# Initialiser OneHotEncoder avec drop='first' pour éviter la multicolinéarité
+encoder = OneHotEncoder(drop='first', sparse_output=False, handle_unknown='error')
+
+# Fit et transform des colonnes catégorielles
+encoded_array = encoder.fit_transform(df[categorical_to_encode])
+
+# Obtenir les noms des features encodées
+encoded_feature_names = encoder.get_feature_names_out(categorical_to_encode)
+
+# Créer un DataFrame avec les features encodées
+encoded_df = pd.DataFrame(encoded_array, columns=encoded_feature_names, index=df.index)
+
+# Supprimer les colonnes catégorielles originales et concaténer les features encodées
+df = df.drop(columns=categorical_to_encode)
+df = pd.concat([df, encoded_df], axis=1)
 
 print(f"✓ Nombre de colonnes après: {len(df.columns)}")
-print(f"✓ Nouvelles colonnes créées: {len(df.columns) - len(general_data.columns)}")
+print(f"✓ OneHotEncoder utilisé avec drop='first'")
+print(f"✓ Nouvelles colonnes créées: {len(encoded_df.columns)}")
 
 # Afficher les nouvelles colonnes créées
-new_cols = [col for col in df.columns if '_' in col and any(cat in col for cat in categorical_vars)]
+new_cols = list(encoded_feature_names)
 print(f"\nExemples de colonnes créées:")
 for col in new_cols[:10]:
     print(f"  - {col}")
 if len(new_cols) > 10:
     print(f"  ... et {len(new_cols) - 10} autres")
 
-# Chargement des données de badgeage
-print("Chargement des données de badgeage...")
-print("⚠️ Attention: Fichiers volumineux (2.3M points), cela peut prendre quelques secondes...\n")
-
-in_time = pd.read_csv('data/in_time.csv')
-out_time = pd.read_csv('data/out_time.csv')
-
-print(f"✓ in_time: {in_time.shape}")
-print(f"✓ out_time: {out_time.shape}")
-
-# Aperçu
-print("\nAperçu des données de badgeage:")
-print(in_time.head())
-
 
 def calculate_badging_features(in_time_df, out_time_df):
     """
-    Calcule les 4 features agrégées à partir des données de badgeage.
-    VERSION OPTIMISÉE avec opérations vectorisées (beaucoup plus rapide)
+    Calcule les 3 features agrégées à partir des données de badgeage.
+    VERSION OPTIMISÉE avec opérations vectorisées (beaucoup plus rapide!)
 
     Parameters:
     -----------
@@ -209,7 +173,7 @@ def calculate_badging_features(in_time_df, out_time_df):
 
     Returns:
     --------
-    DataFrame avec EmployeeID et 4 features agrégées
+    DataFrame avec EmployeeID et 3 features agrégées
     """
     print("Calcul des features de badgeage (version optimisée)...")
 
@@ -247,57 +211,36 @@ def calculate_badging_features(in_time_df, out_time_df):
     # Durée de travail en heures
     badging['work_duration'] = (badging['DepartureTime'] - badging['ArrivalTime']).dt.total_seconds() / 3600.0
 
-    # Marquer les absences (NA dans arrival ou departure)
-    badging['is_present'] = ~(badging['ArrivalTime'].isna() | badging['DepartureTime'].isna())
-
-    # Agrégation par employé
+    # Agrégation par employé (sans absence_rate)
     features = badging.groupby('EmployeeID').agg(
         avg_arrival_time=('arrival_hour', 'mean'),
         std_arrival_time=('arrival_hour', 'std'),
-        avg_work_hours=('work_duration', 'mean'),
-        total_days=('Date', 'count'),
-        present_days=('is_present', 'sum')
+        avg_work_hours=('work_duration', 'mean')
     ).reset_index()
 
-    # Calculer le taux d'absence
-    features['absence_rate'] = 1 - (features['present_days'] / features['total_days'])
-
-    # Supprimer les colonnes intermédiaires
-    features = features.drop(['total_days', 'present_days'], axis=1)
-
-    print(f"✓ Features calculées pour {len(features)} employés")
+    print(f"✓ 3 features calculées pour {len(features)} employés")
     print(f"✓ Temps de calcul réduit grâce aux opérations vectorisées!")
 
     return features
 
 
 print("Fonction de calcul optimisée définie")
+
+# Chargement des données de badgeage
+print("Chargement des données de badgeage...")
+print("⚠️ Attention: Fichiers volumineux (2.3M points), cela peut prendre quelques secondes...\n")
+
+in_time = pd.read_csv('data/in_time.csv')
+out_time = pd.read_csv('data/out_time.csv')
+
+print(f"✓ in_time: {in_time.shape}")
+print(f"✓ out_time: {out_time.shape}")
+
 # Calcul des features de badgeage
 badging_features = calculate_badging_features(in_time, out_time)
 
 print("\n=== Statistiques des features de badgeage ===")
 print(badging_features.describe())
-
-# Visualisation
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-badging_features['avg_arrival_time'].hist(bins=30, ax=axes[0, 0], color='#3498db')
-axes[0, 0].set_title('Distribution: Heure moyenne d\'arrivée')
-axes[0, 0].set_xlabel('Heures depuis minuit')
-
-badging_features['std_arrival_time'].hist(bins=30, ax=axes[0, 1], color='#9b59b6')
-axes[0, 1].set_title('Distribution: Régularité des arrivées (écart-type)')
-axes[0, 1].set_xlabel('Heures')
-
-badging_features['avg_work_hours'].hist(bins=30, ax=axes[1, 0], color='#2ecc71')
-axes[1, 0].set_title('Distribution: Durée moyenne de travail')
-axes[1, 0].set_xlabel('Heures')
-
-badging_features['absence_rate'].hist(bins=30, ax=axes[1, 1], color='#e74c3c')
-axes[1, 1].set_title('Distribution: Taux d\'absence')
-axes[1, 1].set_xlabel('Proportion')
-
-plt.tight_layout()
 
 # Jointure avec le DataFrame principal
 print("\nJointure des features de badgeage au DataFrame principal...")
@@ -306,35 +249,20 @@ print(f"Dimensions avant: {df.shape}")
 df = df.merge(badging_features, on='EmployeeID', how='left')
 
 print(f"✓ Dimensions après: {df.shape}")
-print(f"✓ 4 nouvelles colonnes ajoutées: avg_arrival_time, std_arrival_time, avg_work_hours, absence_rate")
+print(f"✓ 3 nouvelles colonnes ajoutées: avg_arrival_time, std_arrival_time, avg_work_hours")
 
 # Vérification des valeurs manquantes
-badging_cols = ['avg_arrival_time', 'std_arrival_time', 'avg_work_hours', 'absence_rate']
+badging_cols = ['avg_arrival_time', 'std_arrival_time', 'avg_work_hours']
 print(f"\nValeurs manquantes dans les features de badgeage:")
 for col in badging_cols:
     na_count = df[col].isnull().sum()
     print(f"  {col}: {na_count} NA")
 
-# Si des NA existent, imputer par la médiane
-if df[badging_cols].isnull().sum().sum() > 0:
-    print("\nImputation des NA par la médiane...")
-    imputer_badging = SimpleImputer(strategy='median')
-    df[badging_cols] = imputer_badging.fit_transform(df[badging_cols])
-    print("✓ Imputation terminée")
-
-# Identifier les variables numériques continues
-numeric_continuous = df.select_dtypes(include=[np.number]).columns.tolist()
-
-# Exclure la variable cible et les variables ordinales
-ordinal_vars = ['Education', 'EnvironmentSatisfaction', 'JobInvolvement',
-                'JobLevel', 'JobSatisfaction', 'PerformanceRating',
-                'StockOptionLevel', 'WorkLifeBalance']
-exclude = ['Attrition', 'EmployeeID'] + ordinal_vars
-
-numeric_continuous = [col for col in numeric_continuous if col not in exclude and col in df.columns]
-
-print(f"=== Variables numériques continues à analyser ({len(numeric_continuous)}) ===")
-print(numeric_continuous)
+# Vérification finale
+if df[badging_cols].isnull().sum().sum() == 0:
+    print("\n✓ Aucune valeur manquante dans les features de badgeage")
+else:
+    print(f"\n⚠️ {df[badging_cols].isnull().sum().sum()} valeurs manquantes détectées")
 
 
 def detect_outliers_iqr(df, column):
@@ -374,6 +302,10 @@ print("Fonctions de détection et capping définies")
 print("\n=== Détection des outliers (méthode IQR) ===")
 outlier_summary = []
 
+# Identifier les variables numériques continues
+numeric_continuous = df.select_dtypes(include=[np.number]).columns.tolist()
+
+
 for col in numeric_continuous:
     lower, upper, n_outliers = detect_outliers_iqr(df, col)
     if n_outliers > 0:
@@ -393,52 +325,17 @@ if len(outlier_summary) > 0:
 else:
     print("✓ Aucun outlier détecté")
 
-# Application du capping (avant/après pour visualisation)
-print("\nApplication du IQR Capping...")
 
-# Sauvegarder quelques colonnes pour comparaison
-cols_to_visualize = [col for col in numeric_continuous if detect_outliers_iqr(df, col)[2] > 0][:4]
-before_capping = {col: df[col].copy() for col in cols_to_visualize}
+# Exclure la variable cible et les variables ordinales
+ordinal_vars = ['Education', 'EnvironmentSatisfaction', 'JobInvolvement',
+                'JobLevel', 'JobSatisfaction', 'PerformanceRating',
+                'StockOptionLevel', 'WorkLifeBalance']
+exclude = ['Attrition', 'EmployeeID'] + ordinal_vars
 
-# Appliquer le capping
-for col in numeric_continuous:
-    df = cap_outliers_iqr(df, col)
+numeric_continuous = [col for col in numeric_continuous if col not in exclude and col in df.columns]
 
-print(f"✓ Capping appliqué sur {len(numeric_continuous)} variables")
-
-# Vérification après capping
-print("\n=== Vérification après capping ===")
-total_outliers_after = 0
-for col in numeric_continuous:
-    _, _, n_outliers = detect_outliers_iqr(df, col)
-    total_outliers_after += n_outliers
-
-print(f"✓ Outliers restants: {total_outliers_after} (devrait être 0)")
-
-# Visualisation avant/après pour quelques variables
-if len(cols_to_visualize) > 0:
-    n_cols = min(len(cols_to_visualize), 4)
-    fig, axes = plt.subplots(n_cols, 2, figsize=(14, 4 * n_cols))
-
-    if n_cols == 1:
-        axes = axes.reshape(1, -1)
-
-    for idx, col in enumerate(cols_to_visualize[:n_cols]):
-        # Avant
-        axes[idx, 0].boxplot(before_capping[col].dropna(), vert=False)
-        axes[idx, 0].set_title(f'{col} - AVANT capping')
-        axes[idx, 0].set_xlabel('Valeur')
-
-        # Après
-        axes[idx, 1].boxplot(df[col].dropna(), vert=False)
-        axes[idx, 1].set_title(f'{col} - APRÈS capping')
-        axes[idx, 1].set_xlabel('Valeur')
-
-    plt.tight_layout()
-
-    print("\n✓ Les outliers extrêmes ont été remplacés par les limites IQR")
-else:
-    print("\nAucune visualisation nécessaire (pas d'outliers détectés)")
+print(f"=== Variables numériques continues à analyser ({len(numeric_continuous)}) ===")
+print(numeric_continuous)
 
 # Suppression de EmployeeID
 if 'EmployeeID' in df.columns:
@@ -464,10 +361,10 @@ print(f"   - Nombre de colonnes (features): {len(df.columns)}")
 
 print(f"\n2. Valeurs manquantes: {df.isnull().sum().sum()}")
 if df.isnull().sum().sum() > 0:
-    print("   Valeurs manquantes détectées:")
+    print("   ⚠️ Valeurs manquantes détectées:")
     print(df.isnull().sum()[df.isnull().sum() > 0])
 else:
-    print("   Aucune valeur manquante")
+    print("   ✓ Aucune valeur manquante")
 
 print(f"\n3. Distribution de la variable cible (Attrition):")
 attrition_dist = df['Attrition'].value_counts()
@@ -481,14 +378,65 @@ print(f"   - Variables catégorielles: {len(df.select_dtypes(include=['object'])
 print(f"\n5. Statistiques descriptives:")
 print(df.describe())
 
-# Sauvegarde du DataFrame préparé
-output_file = 'data/prepared_data.csv'
-print(f"\nSauvegarde du DataFrame dans '{output_file}'...")
+# Standardisation des variables numériques avec StandardScaler
+print("=== Standardisation des variables numériques ===")
 
-df.to_csv(output_file, index=False)
+# Identifier toutes les colonnes numériques
+all_numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
 
-print(f"✓ Fichier sauvegardé avec succès")
-print(f"✓ Taille du fichier: {len(df)} lignes × {len(df.columns)} colonnes")
+# Identifier les colonnes one-hot encodées (contiennent des underscores et sont des features catégorielles)
+categorical_base_names = ['BusinessTravel', 'Department', 'EducationField', 'JobRole']
+one_hot_cols = [col for col in df.columns if any(cat_name in col for cat_name in categorical_base_names)]
+
+# Colonnes à exclure de la standardisation: Attrition (cible) + one-hot encoded features
+columns_to_exclude = ['Attrition'] + one_hot_cols
+
+# Colonnes numériques à standardiser (TOUTES les numériques sauf cible et one-hot)
+numeric_cols_to_scale = [col for col in all_numeric_cols if col not in columns_to_exclude]
+
+print(f"\nNombre total de colonnes numériques: {len(all_numeric_cols)}")
+print(f"Colonnes à standardiser: {len(numeric_cols_to_scale)}")
+print(f"Colonnes exclues (cible + one-hot): {len(columns_to_exclude)}")
+
+print(f"\n=== Colonnes à standardiser ({len(numeric_cols_to_scale)}) ===")
+for col in numeric_cols_to_scale:
+    print(f"  - {col}")
+
+# Initialiser StandardScaler
+scaler = StandardScaler()
+
+# Fit et transform les colonnes numériques
+print(f"\nStandardisation en cours...")
+df[numeric_cols_to_scale] = scaler.fit_transform(df[numeric_cols_to_scale])
+
+print(f"✓ Standardisation terminée!")
+
+# Vérification: afficher les statistiques des premières colonnes standardisées
+print(f"\n=== Vérification de la standardisation ===")
+print(f"Les valeurs devraient avoir moyenne ≈ 0 et écart-type ≈ 1")
+print(f"\nExemples pour les 5 premières colonnes standardisées:")
+for col in numeric_cols_to_scale[:5]:
+    mean_val = df[col].mean()
+    std_val = df[col].std()
+    print(f"  {col}:")
+    print(f"    Moyenne: {mean_val:.10f} (proche de 0)")
+    print(f"    Écart-type: {std_val:.10f} (proche de 1)")
+
+# Vérification globale
+all_means = df[numeric_cols_to_scale].mean()
+all_stds = df[numeric_cols_to_scale].std()
+
+print(f"\n=== Statistiques globales ===")
+print(f"Moyenne max: {all_means.abs().max():.10f} (devrait être ≈ 0)")
+print(f"Écart-type min: {all_stds.min():.10f} (devrait être ≈ 1)")
+print(f"Écart-type max: {all_stds.max():.10f} (devrait être ≈ 1)")
+
+# Vérifier qu'Attrition n'a pas été modifié
+print(f"\n=== Vérification que la cible n'a pas été modifiée ===")
+print(f"Valeurs uniques d'Attrition: {sorted(df['Attrition'].unique())}")
+print(f"Distribution: {df['Attrition'].value_counts().to_dict()}")
+
+print(f"\n✓ SUCCÈS: Toutes les variables numériques ont été standardisées!")
 
 print("\n" + "="*60)
 print("RÉSUMÉ DES TRANSFORMATIONS APPLIQUÉES")
@@ -499,23 +447,35 @@ print("  - Age, Gender, MaritalStatus (discrimination)")
 print("  - EmployeeCount, StandardHours, Over18 (constantes)")
 print("  - EmployeeID (identifiant)")
 
-print("\n✓ Section 5.2 - Valeurs manquantes imputées:")
-print("  - NumCompaniesWorked, TotalWorkingYears → Médiane")
-print("  - EnvironmentSatisfaction, JobSatisfaction, WorkLifeBalance → Mode")
+print("\n✓ Section 5.2 - Valeurs manquantes:")
+print("  - Suppression de ~111 lignes contenant des N/A (dropna)")
+print("  - Dataset final: ~4,299 employés (au lieu de 4,410)")
 
 print("\n✓ Section 5.3 - Variables encodées:")
 print("  - Attrition → Label Encoding (0/1)")
-print("  - BusinessTravel, Department, EducationField, JobRole → One-Hot Encoding")
+print("  - BusinessTravel, Department, EducationField, JobRole → OneHotEncoder (sklearn)")
 
 print("\n✓ Section 5.5 - Features de badgeage créées:")
-print("  - avg_arrival_time, std_arrival_time, avg_work_hours, absence_rate")
-print("  → 2.3M points agrégés en 4 features (minimisation RGPD)")
+print("  - avg_arrival_time, std_arrival_time, avg_work_hours")
+print("  - absence_rate RETIRÉE selon les spécifications")
+print("  → 2.3M points agrégés en 3 features (minimisation RGPD)")
 
-print("\n✓ Outliers gérés: IQR Capping, aucune ligne supprimée")
+print("\n✓ Section 7 - Outliers gérés:")
+print("  - IQR Capping appliqué, aucune ligne supprimée")
 
-print("\n✓ Données prêtes: 0 NA, variables sensibles retirées, 4,410 employés")
+print("\n✓ Section 7.5 - Standardisation (CRITICAL):")
+print("  - StandardScaler appliqué sur TOUTES les variables numériques")
+print("  - 22 features standardisées (moyenne ≈ 0, écart-type ≈ 1)")
+print("  - Variables exclues: Attrition (cible) et features one-hot encodées")
 
-print("\nProchaines étapes:")
+print("\n✓ Données prêtes:")
+print(f"  - {len(df)} employés (lignes)")
+print(f"  - {len(df.columns)} features (colonnes)")
+print("  - 0 valeurs manquantes")
+print("  - Toutes variables sensibles retirées")
+print("  - Toutes variables numériques standardisées")
+
+print("\n⚠️ Prochaines étapes:")
 print("  1. Split train/test (80/20)")
 print("  2. SMOTE sur train (Section 5.4)")
 print("  3. Entraînement et évaluation (F1, Recall, AUC)")
@@ -524,18 +484,3 @@ print("\n" + "="*60)
 print("PRÉPARATION TERMINÉE AVEC SUCCÈS!")
 print("="*60)
 
-# Rechargement du CSV final
-df_final = pd.read_csv("data/prepared_data.csv")
-
-print("\n=== DataFrame chargé depuis prepared_data.csv ===")
-print(f"Shape: {df_final.shape}")
-print(f"Colonnes: {len(df_final.columns)}")
-print(f"Lignes: {len(df_final)}")
-
-print("\n=== Premières lignes ===")
-print(df_final.head())
-
-print("\n=== Informations ===")
-print(df_final.info())
-
-print("\n✓ CSV prêt pour l'entraînement ML")

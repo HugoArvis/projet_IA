@@ -2,7 +2,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
-from imblearn.combine import SMOTEENN
+from imblearn.over_sampling import SMOTE
 import os
 import joblib  # Meilleur que pickle pour les modèles sklearn
 
@@ -33,6 +33,7 @@ def logistic_regression_model(X, y, class_weight='balanced', test_size=0.2,
     # Créer le dossier si nécessaire
     os.makedirs('trained_models', exist_ok=True)
 
+
     # Diviser les données en ensembles d'entraînement et de test
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
@@ -50,8 +51,8 @@ def logistic_regression_model(X, y, class_weight='balanced', test_size=0.2,
         print("Application de SMOTE...")
         print(f"Avant SMOTE - Classe 0: {sum(y_train == 0)}, Classe 1: {sum(y_train == 1)}")
 
-        smoteenn = SMOTEENN(random_state=random_state)
-        X_train_resampled, y_train_resampled = smoteenn.fit_resample(X_train, y_train)
+        smote = SMOTE(random_state=random_state, sampling_strategy='auto')
+        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
 
         print(f"Après SMOTEENN - Classe 0: {sum(y_train_resampled == 0)}, Classe 1: {sum(y_train_resampled == 1)}")
 
@@ -62,7 +63,8 @@ def logistic_regression_model(X, y, class_weight='balanced', test_size=0.2,
             max_iter=max_iter,
             random_state=random_state,
             class_weight=class_weight,
-            solver='lbfgs'  # Solver recommandé
+            penalty='l1',
+            solver='liblinear'
         )
         model.fit(X_train_resampled, y_train_resampled)
 
