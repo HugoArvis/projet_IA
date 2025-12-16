@@ -54,3 +54,18 @@ print("\n", "="*50)
 print("Résultats du modèle de régression logistique sur les données de test :")
 print("Rapport de classification :\n", report)
 print("Matrice de confusion :\n", cm)
+
+#afficher un graphique sur l'importance des caractéristiques pour le modèle de régression logistique
+import matplotlib.pyplot as plt
+import numpy as np
+if 'LogisticRegression' in str(type(model)):
+    importance = model.coef_[0]
+    features = X.columns
+    indices = np.argsort(importance)
+
+    plt.figure(figsize=(10, 6))
+    plt.title('Importance des caractéristiques pour la régression logistique')
+    plt.barh(range(len(indices)), importance[indices], align='center')
+    plt.yticks(range(len(indices)), [features[i] for i in indices])
+    plt.xlabel('Importance')
+    plt.show()
