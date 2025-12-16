@@ -36,18 +36,9 @@ print("Résultats du modèle SVM sur les données de test :")
 print("Rapport de classification :\n", report)
 print("Matrice de confusion :\n", cm)
 
-#Modèle de régression logistique
-#vérifier si le modèle de régression logistique est déjà entraîné et sauvegardé
-if os.path.exists('trained_models/logistic_regression_model.pkl'):
-    #charger le modèle existant
-    model = pd.read_pickle('trained_models/logistic_regression_model.pkl')
-    print("Modèle de régression logistique chargé depuis le fichier.")
-    report = classification_report(y_test, model.predict(X_test))
-    cm = None  # La matrice de confusion n'est pas calculée ici
-else:
-    #entraîner un nouveau modèle de régression logistique
-    model, report, cm = logistic_regression_model(X, y, test_size=0.2, random_state=42, C=1.0, max_iter=100)
-    print("Nouveau modèle de régression logistique entraîné.")
+
+#modèle de régression logistique
+model, report, cm = logistic_regression_model(X, y, class_weight='balanced', test_size=0.2, random_state=42, C=1.0, max_iter=100)
 
 #afficher les résultats
 print("\n", "="*50)
