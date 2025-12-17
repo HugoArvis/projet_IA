@@ -17,6 +17,8 @@ import pandas as pd
 import os
 import joblib
 import time
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 
 
 # ============================================================================
@@ -172,12 +174,149 @@ def svm_optimized(X_train, X_test, y_train, y_test,
 
     return model, classification_report(y_test, y_pred), cm, y_proba
 
+# ============================================================================
+# RANDOM FOREST OPTIMISÉ
+# ============================================================================
+
+def random_forest_optimized(X_train, X_test, y_train, y_test,
+                            use_smote=True, use_saved_model=False,
+                            n_estimators=100, max_depth=6):
+    rf__balanced = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        random_state=42,
+        class_weight='balanced',
+        n_jobs=-1  # Parallélisation
+    )
+
+    os.makedirs('trained_models', exist_ok=True)
+    model_path = 'trained_models/random_forest_optimized.pkl'
+
+    # Charger modèle existant si demandé
+    if use_saved_model and os.path.exists(model_path):
+        print("📁 Chargement du modèle Random Forest existant...")
+        model = joblib.load(model_path)
+    else:
+        # Appliquer SMOTEENN si demandé
+        if use_smote:
+            print("    Application de SMOTEENN pour équilibrer les données...")
+            print(f"   Avant: Classe 0={sum(y_train == 0)}, Classe 1={sum(y_train == 1)}")
+
+            smoteenn = SMOTEENN(random_state=42)
+            X_train_balanced, y_train_balanced = smoteenn.fit_resample(X_train, y_train)
+
+            print(f"   Après: Classe 0={sum(y_train_balanced == 0)}, Classe 1={sum(y_train_balanced == 1)}")
+        else:
+            X_train_balanced, y_train_balanced = X_train, y_train
+
+        # Entraîner le modèle
+        print("🔧 Entraînement du Random Forest...")
+        start_time = time.time()
+
+        model = rf__balanced
+        model.fit(X_train_balanced, y_train_balanced)
+
+        training_time = time.time() - start_time
+        print(f"✓ Entraînement terminé en {training_time:.2f}s")
+
+        # Sauvegarder
+        joblib.dump(model, model_path)
+        print(f"💾 Modèle sauvegardé: {model_path}")
+
+    # Prédictions
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)[:, 1]
+
+    # Évaluation
+    print("\n📊 RÉSULTATS - RANDOM FOREST")
+    print("=" * 70)
+    print(classification_report(y_test, y_pred, target_names=['No Attrition', 'Attrition']))
+    cm = confusion_matrix(y_test, y_pred)
+    print(f"\nMatrice de confusion:")
+    print(f"  TN={cm[0, 0]:<5} FP={cm[0, 1]:<5}")
+    print(f"  FN={cm[1, 0]:<5} TP={cm[1, 1]:<5}")
+
+    # Métriques supplémentaires
+    roc_auc = roc_auc_score(y_test, y_proba)
+    print(f"\n🎯 ROC-AUC Score: {roc_auc:.4f}")
+
+    return model, classification_report(y_test, y_pred), cm, y_proba
+
+# ============================================================================
+# XGBOOST OPTIMISÉ
+# ============================================================================
+
+def xgboost_optimized(X_train, X_test, y_train, y_test,
+                      use_smote=True, use_saved_model=False,
+                      n_estimators=100, max_depth=6, learning_rate=0.1, scale_pos_weight=1):
+
+    os.makedirs('trained_models', exist_ok=True)
+    model_path = 'trained_models/xgboost_optimized.pkl'
+
+    # Charger modèle existant si demandé
+    if use_saved_model and os.path.exists(model_path):
+        print("📁 Chargement du modèle XGBoost existant...")
+        model = joblib.load(model_path)
+    else:
+        # Appliquer SMOTEENN si demandé
+        if use_smote:
+            print("⚖️  Application de SMOTEENN pour équilibrer les données...")
+            print(f"   Avant: Classe 0={sum(y_train == 0)}, Classe 1={sum(y_train == 1)}")
+
+            smoteenn = SMOTEENN(random_state=42)
+            X_train_balanced, y_train_balanced = smoteenn.fit_resample(X_train, y_train)
+
+            print(f"   Après: Classe 0={sum(y_train_balanced == 0)}, Classe 1={sum(y_train_balanced == 1)}")
+        else:
+            X_train_balanced, y_train_balanced = X_train, y_train
+
+        # Entraîner le modèle
+        print("🔧 Entraînement du XGBoost...")
+        start_time = time.time()
+
+        model = XGBClassifier(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=learning_rate,
+            scale_pos_weight=scale_pos_weight,
+            use_label_encoder=False,
+            eval_metric='logloss',
+            random_state=42,
+            n_jobs=-1
+        )
+        model.fit(X_train_balanced, y_train_balanced)
+
+        training_time = time.time() - start_time
+        print(f"✓ Entraînement terminé en {training_time:.2f}s")
+
+        # Sauvegarder
+        joblib.dump(model, model_path)
+        print(f"💾 Modèle sauvegardé: {model_path}")
+
+    # Prédictions
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)[:, 1]
+
+    # Évaluation
+    print("\n📊 RÉSULTATS - XGBOOST")
+    print("=" * 70)
+    print(classification_report(y_test, y_pred, target_names=['No Attrition', 'Attrition']))
+    cm = confusion_matrix(y_test, y_pred)
+    print(f"\nMatrice de confusion:")
+    print(f"  TN={cm[0, 0]:<5} FP={cm[0, 1]:<5}")
+    print(f"  FN={cm[1, 0]:<5} TP={cm[1, 1]:<5}")
+
+    # Métriques supplémentaires
+    roc_auc = roc_auc_score(y_test, y_proba)
+    print(f"\n🎯 ROC-AUC Score: {roc_auc:.4f}")
+
+    return model, classification_report(y_test, y_pred), cm, y_proba
 
 # ============================================================================
 # FONCTION DE COMPARAISON
 # ============================================================================
 
-def compare_models(models_dict, y_test):
+def compare_models(models_dict, X_test, y_test):
     """
     Compare les performances de plusieurs modèles
 
@@ -190,15 +329,18 @@ def compare_models(models_dict, y_test):
     results = []
 
     for name, (model, y_proba) in models_dict.items():
-        y_pred = model.predict(y_proba.reshape(-1, 1) if len(y_proba.shape) == 1 else y_proba) if hasattr(model,
-                                                                                                          'predict') else (
-                    y_proba > 0.5).astype(int)
+        y_pred = model.predict(X_test)
 
         # Recalculer avec les vrais y_pred du modèle
-        if hasattr(model, 'predict'):
+        if hasattr(model, 'predict_proba'):
             # Pour récupérer X_test, on doit le passer différemment
             # Utilisons directement les prédictions déjà calculées
-            pass
+            y_proba = model.predict_proba(X_test)[:, 1]
+        else:
+            try:
+                y_proba = model.decision_function(X_test)
+            except:
+                y_proba = None
 
         f1 = f1_score(y_test, (y_proba > 0.5).astype(int))
         precision = precision_score(y_test, (y_proba > 0.5).astype(int))
@@ -262,10 +404,10 @@ def plot_feature_importance(model, feature_names, model_type='logistic', top_n=1
 
         plt.tight_layout()
         plt.savefig(f'trained_models/{model_type}_feature_importance.png', dpi=300, bbox_inches='tight')
-        print(f"\n📊 Graphique sauvegardé: trained_models/{model_type}_feature_importance.png")
+        print(f"\n  Graphique sauvegardé: trained_models/{model_type}_feature_importance.png")
         plt.show()
     else:
-        print(f"⚠️  L'importance des features n'est pas disponible pour ce type de modèle")
+        print(f"    L'importance des features n'est pas disponible pour ce type de modèle")
 
 
 # ============================================================================

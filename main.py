@@ -13,6 +13,8 @@ warnings.filterwarnings('ignore')
 from optimized_models import (
     logistic_regression_optimized,
     svm_optimized,
+    random_forest_optimized,
+    xgboost_optimized,
     compare_models,
     plot_feature_importance
 )
@@ -98,6 +100,32 @@ def main():
     )
 
     # ========================================================================
+    # MODÈLE 3: RANDOM FOREST
+    # ========================================================================
+    print("\n" + "-" * 70)
+    print("3. RANDOM FOREST")
+    print("-" * 70)
+
+    rf_model, rf_report, rf_cm, rf_proba = random_forest_optimized(
+        X_train, X_test, y_train, y_test,
+        use_smote=True,
+        use_saved_model=False
+    )
+
+    # ========================================================================
+    # MODÈLE 4: XGBOOST
+    # ========================================================================
+    print("\n" + "-" * 70)
+    print("4. XGBOOST")
+    print("-" * 70)
+
+    xgb_model, xgb_report, xgb_cm, xgb_proba = xgboost_optimized(
+        X_train, X_test, y_train, y_test,
+        use_smote=True,
+        use_saved_model=False
+    )
+
+    # ========================================================================
     # COMPARAISON DES MODÈLES
     # ========================================================================
     print("\n" + "=" * 70)
@@ -106,10 +134,11 @@ def main():
 
     models_dict = {
         'Logistic Regression': (lr_model, lr_proba),
-        'SVM': (svm_model, svm_proba)
+        'SVM': (svm_model, svm_proba),
+        'Random Forest': (rf_model, rf_proba)
     }
 
-    compare_models(models_dict, y_test)
+    compare_models(models_dict,X_test, y_test)
 
     # ========================================================================
     # ANALYSE DES FEATURES IMPORTANTES
