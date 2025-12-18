@@ -19,11 +19,16 @@ from optimized_models import (
     plot_feature_importance
 )
 
-# Import de la validation croisée
+# Import de la validation croisée et du fine-tuning
 from cross_validation import (
     cross_validate_all_models,
     create_comparison_table,
     plot_cv_results
+)
+
+from hyperparameter_tuning import (
+    run_full_tuning,
+    evaluate_tuned_models
 )
 
 
@@ -66,17 +71,10 @@ def load_and_prepare_data(filepath='data/prepared_data.csv'):
     X_train_scaled = pd.DataFrame(X_train_scaled, columns=X.columns)
     X_test_scaled = pd.DataFrame(X_test_scaled, columns=X.columns)
 
-    #sauvegarder le  scaler pour une utilisation future
-    import joblib
-    import os
-    os.makedirs('trained_models', exist_ok=True)
-    joblib.dump(scaler, 'trained_models/scaler.pkl')
-    print("[SAVE] Scaler sauvegarde: trained_models/scaler.pkl")
-
     return X_train_scaled, X_test_scaled, y_train, y_test, X.columns, scaler, X, y
 
 
-def main(use_cv=True):
+def main(use_cv=True, use_tuning=True):
     """
     Fonction principale pour exécuter tous les modèles
 
@@ -120,6 +118,49 @@ def main(use_cv=True):
         print("✅ VALIDATION CROISÉE TERMINÉE")
         print("=" * 70)
         print("\n💡 Passons maintenant à l'évaluation finale sur le test set...")
+
+        if not use_tuning:
+            input("\nAppuyez sur Entrée pour continuer...")
+
+    # ========================================================================
+    # ÉTAPE 1.5: FINE-TUNING DES HYPERPARAMÈTRES (OPTIONNEL)
+    # ========================================================================
+
+    if use_tuning:
+        print("\n" + "=" * 70)
+        print("ÉTAPE 1.5: FINE-TUNING DES HYPERPARAMÈTRES")
+        print("=" * 70)
+        print("\n💡 Le fine-tuning permet de:")
+        print("   - Trouver les meilleurs hyperparamètres pour chaque modèle")
+        print("   - Maximiser les performances (F1-Score, ROC-AUC)")
+        print("   - Éviter le sur-apprentissage avec une validation croisée")
+        print("\n⚠️  Attention: Le fine-tuning peut prendre 10-30 minutes selon votre machine")
+
+        response = input("\nVoulez-vous continuer avec le fine-tuning? (o/n): ")
+
+        if response.lower() == 'o':
+            # Lancer le fine-tuning complet
+            tuned_models, best_params, tuning_results = run_full_tuning(
+                X_train, X_test, y_train, y_test,
+                use_smote=True,
+                search_type='grid',  # 'grid' pour exhaustif, 'random' pour plus rapide
+                small_grid=True  # True pour tests rapides, False pour recherche complète
+            )
+
+            print("\n" + "=" * 70)
+            print("✅ FINE-TUNING TERMINÉ")
+            print("=" * 70)
+            print("\n💡 Les modèles optimisés sont maintenant disponibles dans tuned_models/")
+            print("💡 Vous pouvez les charger avec joblib.load() pour vos prédictions")
+
+            # Terminer ici si fine-tuning activé
+            print("\n" + "=" * 70)
+            print("ANALYSE TERMINÉE AVEC FINE-TUNING")
+            print("=" * 70)
+            return
+        else:
+            print("\n⏭️  Fine-tuning ignoré, passage à l'entraînement standard...")
+
         input("\nAppuyez sur Entrée pour continuer...")
 
     # ========================================================================
@@ -253,8 +294,11 @@ def main(use_cv=True):
 
 
 if __name__ == "__main__":
-    # Option 1: Avec validation croisée (RECOMMANDÉ)
-    main(use_cv=True)
+    # Option 1: Analyse complète avec validation croisée ET fine-tuning (MEILLEUR MAIS LENT)
+    # main(use_cv=True, use_tuning=True)
 
-    # Option 2: Sans validation croisée (plus rapide)
-    # main(use_cv=False)
+    # Option 2: Validation croisée seulement (RECOMMANDÉ)
+    main(use_cv=True, use_tuning=False)
+
+    # Option 3: Sans validation croisée ni tuning (RAPIDE mais moins robuste)
+    # main(use_cv=False, use_tuning=False)
