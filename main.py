@@ -66,6 +66,13 @@ def load_and_prepare_data(filepath='data/prepared_data.csv'):
     X_train_scaled = pd.DataFrame(X_train_scaled, columns=X.columns)
     X_test_scaled = pd.DataFrame(X_test_scaled, columns=X.columns)
 
+    #sauvegarder le  scaler pour une utilisation future
+    import joblib
+    import os
+    os.makedirs('trained_models', exist_ok=True)
+    joblib.dump(scaler, 'trained_models/scaler.pkl')
+    print("[SAVE] Scaler sauvegarde: trained_models/scaler.pkl")
+
     return X_train_scaled, X_test_scaled, y_train, y_test, X.columns, scaler, X, y
 
 
