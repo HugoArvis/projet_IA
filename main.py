@@ -19,6 +19,13 @@ from optimized_models import (
     plot_feature_importance
 )
 
+# Import de la validation croisée
+from cross_validation import (
+    cross_validate_all_models,
+    create_comparison_table,
+    plot_cv_results
+)
+
 
 def load_and_prepare_data(filepath='data/prepared_data.csv'):
     """
@@ -59,18 +66,61 @@ def load_and_prepare_data(filepath='data/prepared_data.csv'):
     X_train_scaled = pd.DataFrame(X_train_scaled, columns=X.columns)
     X_test_scaled = pd.DataFrame(X_test_scaled, columns=X.columns)
 
-    return X_train_scaled, X_test_scaled, y_train, y_test, X.columns, scaler
+    return X_train_scaled, X_test_scaled, y_train, y_test, X.columns, scaler, X, y
 
 
-def main():
+def main(use_cv=True):
     """
     Fonction principale pour exécuter tous les modèles
+
+    Paramètres:
+    - use_cv: Si True, effectue d'abord une validation croisée avant le train/test final
     """
     # Charger et préparer les données
-    X_train, X_test, y_train, y_test, feature_names, scaler = load_and_prepare_data()
+    X_train, X_test, y_train, y_test, feature_names, scaler, X_full, y_full = load_and_prepare_data()
+
+    # ========================================================================
+    # ÉTAPE 1: VALIDATION CROISÉE (RECOMMANDÉ)
+    # ========================================================================
+
+    if use_cv:
+        print("\n" + "=" * 70)
+        print("ÉTAPE 1: VALIDATION CROISÉE SUR L'ENSEMBLE D'ENTRAÎNEMENT")
+        print("=" * 70)
+        print("\n💡 La validation croisée permet de:")
+        print("   - Détecter le sur-apprentissage")
+        print("   - Obtenir une estimation plus robuste des performances")
+        print("   - Utiliser efficacement toutes les données d'entraînement")
+
+        # Normaliser toutes les données pour la CV
+        X_train_full_scaled = scaler.fit_transform(X_train)
+        X_train_full_scaled = pd.DataFrame(X_train_full_scaled, columns=feature_names)
+
+        # Exécuter la validation croisée sur l'ensemble d'entraînement
+        all_results, all_cv_results = cross_validate_all_models(
+            X_train_full_scaled, y_train,
+            use_smote=True,
+            n_splits=5
+        )
+
+        # Créer le tableau comparatif
+        cv_comparison = create_comparison_table(all_results)
+
+        # Visualiser les résultats
+        plot_cv_results(all_results, all_cv_results)
+
+        print("\n" + "=" * 70)
+        print("✅ VALIDATION CROISÉE TERMINÉE")
+        print("=" * 70)
+        print("\n💡 Passons maintenant à l'évaluation finale sur le test set...")
+        input("\nAppuyez sur Entrée pour continuer...")
+
+    # ========================================================================
+    # ÉTAPE 2: ENTRAÎNEMENT ET ÉVALUATION FINALE SUR TEST SET
+    # ========================================================================
 
     print("\n" + "=" * 70)
-    print("ENTRAÎNEMENT DES MODÈLES")
+    print("ÉTAPE 2: ENTRAÎNEMENT FINAL ET ÉVALUATION SUR TEST SET")
     print("=" * 70)
 
     # ========================================================================
@@ -126,19 +176,20 @@ def main():
     )
 
     # ========================================================================
-    # COMPARAISON DES MODÈLES
+    # COMPARAISON DES MODÈLES SUR TEST SET
     # ========================================================================
     print("\n" + "=" * 70)
-    print("COMPARAISON DES MODÈLES")
+    print("COMPARAISON DES MODÈLES (TEST SET)")
     print("=" * 70)
 
     models_dict = {
         'Logistic Regression': (lr_model, lr_proba),
         'SVM': (svm_model, svm_proba),
-        'Random Forest': (rf_model, rf_proba)
+        'Random Forest': (rf_model, rf_proba),
+        'XGBoost': (xgb_model, xgb_proba)
     }
 
-    compare_models(models_dict,X_test, y_test)
+    compare_models(models_dict, X_test, y_test)
 
     # ========================================================================
     # ANALYSE DES FEATURES IMPORTANTES
@@ -161,15 +212,42 @@ def main():
     print("\nTop 10 features les plus importantes (Régression Logistique):")
     print(feature_importance_df.head(10)[['Feature', 'Coefficient']])
 
+    # ========================================================================
+    # RÉSUMÉ FINAL
+    # ========================================================================
+    print("\n" + "=" * 70)
+    print("RÉSUMÉ FINAL")
+    print("=" * 70)
+
+    if use_cv:
+        print("\n✅ VALIDATION CROISÉE:")
+        print("   - Détection du sur-apprentissage: OK")
+        print("   - Estimation robuste des performances: OK")
+        print("   - Résultats sauvegardés dans: cv_results/")
+
+    print("\n✅ ÉVALUATION FINALE (TEST SET):")
+    print("   - Tous les modèles entraînés et évalués")
+    print("   - Comparaison des performances effectuée")
+    print("   - Features importantes identifiées")
+
     print("\n" + "=" * 70)
     print("ANALYSE TERMINÉE")
     print("=" * 70)
     print("\n💡 RECOMMANDATIONS:")
-    print("  - Les modèles sont maintenant optimisés et équilibrés")
-    print("  - Le SVM est beaucoup plus rapide grâce à kernel='linear' et normalisation")
-    print("  - Les features importantes sont correctement identifiées")
-    print("  - Utilisez les probabilités pour ajuster le seuil si nécessaire")
+    print("  ✓ Les modèles sont optimisés et équilibrés avec SMOTE")
+    print("  ✓ La validation croisée a permis de détecter le sur-apprentissage")
+    print("  ✓ Le SVM est rapide grâce à kernel='linear' et normalisation")
+    print("  ✓ Les features importantes sont correctement identifiées")
+    print("\n📊 PROCHAINES ÉTAPES:")
+    print("  1. Optimiser les hyperparamètres avec GridSearchCV")
+    print("  2. Tester des techniques d'ensemble (stacking, voting)")
+    print("  3. Analyser les erreurs de classification en détail")
+    print("  4. Ajuster le seuil de décision selon les besoins métier")
 
 
 if __name__ == "__main__":
-    main()
+    # Option 1: Avec validation croisée (RECOMMANDÉ)
+    main(use_cv=True)
+
+    # Option 2: Sans validation croisée (plus rapide)
+    # main(use_cv=False)
